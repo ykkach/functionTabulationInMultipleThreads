@@ -30,10 +30,14 @@ struct STabulationThreadStartArguments
 
 struct SSearchThreadStartArguments
 {
-    int numberOfIterations;
-    int fileIndex;
+    int numberOfElements;
+    int threadIndex;
     int *array;
-    int element;
+    int *minElements;
+    int numOfThreads;
+    int minimalElement;
+    int startingPoint;
+    int endPoint;
 };
 
 using SDTSA = SDefaultThreadStartArguments;
@@ -52,7 +56,7 @@ UiControl::~UiControl()
     for(int i = 0; i < numOfThreads; ++i){
        CloseHandle(hThreads[i]);
         }
-    delete hThreads;
+    delete[] hThreads;
     delete ui;
 }
 
@@ -68,11 +72,17 @@ void UiControl::on_create_clicked()
 
     double division = 0.8/numOfThreads, A = 0.1, B = 0.9;
     int numOfIterations = ui->steps->toPlainText().toInt()/numOfThreads;
+    int *array = new int[numOfIterations];
+    int arrayDivision = numOfIterations/numOfThreads;
+    int startingPoint = 0;
+    for(int i = 0 ; i < numOfIterations; i++)
+       array[i] = rand() % 10000;
 
     SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, FALSE};
 
     for(int i = 0; i < numOfThreads; ++i){
         unsigned ThreadID;
+        SSTSA* STSA = new SSTSA();
         switch(ui->chosenTask->currentIndex())
         {
         case 0:{
@@ -80,6 +90,7 @@ void UiControl::on_create_clicked()
             DTSA->numberOfIterations = numOfIterations;
             DTSA->fileIndex = i;
             hThreads[i] = (HANDLE)_beginthreadex(&sa, 4096, &dThread, (PVOID)DTSA, CREATE_SUSPENDED, &ThreadID);
+            //delete DTSA;
             break;
         }
         case 1:{
@@ -91,21 +102,33 @@ void UiControl::on_create_clicked()
             TTSA->BBorder = B;
             hThreads[i] = (HANDLE)_beginthreadex(&sa, 4096, &tThread, (PVOID)TTSA, CREATE_SUSPENDED, &ThreadID);
             A = B;
+            //delete TTSA;
             break;
         }
         case 2:{
-            SSTSA* STSA = new SSTSA();
-            STSA->numberOfIterations = numOfIterations;
-            STSA->fileIndex = i;
+            STSA->array = new int[numOfIterations];
+            STSA->minElements = new int[numOfThreads];
+            STSA->numberOfElements = numOfIterations;
+            STSA->threadIndex = i;
+            STSA->numOfThreads = numOfThreads;
+            STSA->minimalElement = 0;
+            STSA->startingPoint = startingPoint;
+            STSA->endPoint = arrayDivision;
+            for(int i = 0 ; i < numOfIterations ; i++)
+               STSA->array[i] = rand() % 10000;
             hThreads[i] = (HANDLE)_beginthreadex(&sa, 4096, &sThread, (PVOID)STSA, CREATE_SUSPENDED, &ThreadID);
+            startingPoint += arrayDivision;
+            arrayDivision += startingPoint;
+            //delete STSA;
             break;
         }
-        default: ;
+        default:;
         }
         if(hThreads[i] == INVALID_HANDLE_VALUE) {
               std::cerr << "Invalid handle value" << std::endl;
            return;
         }
+        delete[] array;
         ui->availableThreads->setItem(i,0,new QTableWidgetItem(QString::number(ThreadID)));
         ui->availableThreads->setItem(i,1,new QTableWidgetItem(priority(GetThreadPriority(hThreads[i]))));
         ui->availableThreads->setItem(i,2,new QTableWidgetItem("Suspended"));
@@ -122,6 +145,7 @@ unsigned int _stdcall dThread(LPVOID arg)
         fRes << SSTUDENTDATA << std::endl;
     }
     fRes.close();
+    delete DTSA;
     return 0;
 }
 
@@ -148,6 +172,7 @@ unsigned int _stdcall tThread(LPVOID arg){
             fRes << x << ' ' << total << ' ' << pow(1+x, -1) << std::endl;
         }
         fRes.close();
+        delete TTSA;
     }else{
         std::cerr << "Error: file could not be opened" << std::endl;
         return 1;
@@ -156,6 +181,22 @@ unsigned int _stdcall tThread(LPVOID arg){
 }
 
 unsigned int _stdcall sThread(LPVOID arg){
+    SSTSA* STSA = (SSTSA*)arg;
+    STSA->minElements[STSA->threadIndex] = STSA->array[STSA->startingPoint];
+
+    for(int i = STSA->startingPoint; i < STSA->endPoint; i++)
+    {
+        STSA->minElements[STSA->threadIndex] =
+                STSA->minElements[STSA->threadIndex] < STSA->array[i]?
+                    STSA->minElements[STSA->threadIndex] : STSA->array[i];
+    }
+    STSA->minimalElement = STSA->minElements[0];
+    for (int k = 1; k < STSA->threadIndex+1; k++)
+    {
+        STSA->minimalElement = STSA->minimalElement < STSA->minElements[k]?
+                    STSA->minimalElement : STSA->minElements[k];
+    }
+    qDebug() << STSA->minimalElement;
     return 0;
 }
 

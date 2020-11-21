@@ -180,7 +180,7 @@
     </item>
     <item>
      <property name="text">
-      <string>Find element</string>
+      <string>Min element</string>
      </property>
     </item>
    </widget>
@@ -241,6 +241,19 @@
     </property>
     <property name="text">
      <string>Number of iterations:</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="runwithouttime">
+    <property name="geometry">
+     <rect>
+      <x>540</x>
+      <y>310</y>
+      <width>151</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Run all</string>
     </property>
    </widget>
   </widget>

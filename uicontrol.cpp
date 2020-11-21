@@ -11,31 +11,28 @@
 #include <cmath>
 #include <QDebug>
 
-std::string SSTUDENTDATA = "Kalynych Arsen 12700969";
+std::string SSTUDENTDATA = "Yaroslav Kachmar 12700969";
 std::string PATH = "C:\\Users\\Yaroslav\\Documents\\build-functionTabulationInMultipleThreads-Desktop_Qt_5_14_1_MinGW_32_bit-Debug\\";
 
 struct SDefaultThreadStartArguments
 {
     int numberOfIterations;
-    int fileIndex;
 };
 
 struct STabulationThreadStartArguments
 {
     int numberOfIterations;
-    int fileIndex;
     double ABorder{0.1};
     double BBorder{0.9};
 };
 
 struct SSearchThreadStartArguments
 {
-    int numberOfElements;
     int threadIndex;
     int *array;
     int *minElements;
     int numOfThreads;
-    int minimalElement;
+    int* minimalElement;
     int startingPoint;
     int endPoint;
 };
@@ -72,54 +69,49 @@ void UiControl::on_create_clicked()
 
     double division = 0.8/numOfThreads, A = 0.1, B = 0.9;
     int numOfIterations = ui->steps->toPlainText().toInt()/numOfThreads;
-    int *array = new int[numOfIterations];
-    int arrayDivision = numOfIterations/numOfThreads;
-    int startingPoint = 0;
-    for(int i = 0 ; i < numOfIterations; i++)
-       array[i] = rand() % 10000;
+
+    int startingPoint = 0, endpoint = numOfIterations;
+    int *array = new int[ui->steps->toPlainText().toInt()];
+    int *minElements = new int[numOfThreads]{0};
+    int *minimalElement = new int;
+
+    for(int i = 0 ; i < numOfIterations*numOfThreads; i++)
+       array[i] = rand() % 10000 + 10;
 
     SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, FALSE};
 
     for(int i = 0; i < numOfThreads; ++i){
         unsigned ThreadID;
-        SSTSA* STSA = new SSTSA();
         switch(ui->chosenTask->currentIndex())
         {
         case 0:{
             SDTSA* DTSA = new SDTSA();
             DTSA->numberOfIterations = numOfIterations;
-            DTSA->fileIndex = i;
             hThreads[i] = (HANDLE)_beginthreadex(&sa, 4096, &dThread, (PVOID)DTSA, CREATE_SUSPENDED, &ThreadID);
-            //delete DTSA;
             break;
         }
         case 1:{
             B = A + division;
             STTSA* TTSA = new STTSA();
             TTSA->numberOfIterations = numOfIterations;
-            TTSA->fileIndex = i;
             TTSA->ABorder = A;
             TTSA->BBorder = B;
             hThreads[i] = (HANDLE)_beginthreadex(&sa, 4096, &tThread, (PVOID)TTSA, CREATE_SUSPENDED, &ThreadID);
             A = B;
-            //delete TTSA;
             break;
         }
         case 2:{
-            STSA->array = new int[numOfIterations];
-            STSA->minElements = new int[numOfThreads];
-            STSA->numberOfElements = numOfIterations;
-            STSA->threadIndex = i;
+            SSTSA* STSA = new SSTSA();
+            STSA->array = array;
+            STSA->minElements = minElements;
             STSA->numOfThreads = numOfThreads;
-            STSA->minimalElement = 0;
+            STSA->threadIndex = i;
             STSA->startingPoint = startingPoint;
-            STSA->endPoint = arrayDivision;
-            for(int i = 0 ; i < numOfIterations ; i++)
-               STSA->array[i] = rand() % 10000;
+            STSA->minimalElement = minimalElement;
+            STSA->endPoint = endpoint;
             hThreads[i] = (HANDLE)_beginthreadex(&sa, 4096, &sThread, (PVOID)STSA, CREATE_SUSPENDED, &ThreadID);
-            startingPoint += arrayDivision;
-            arrayDivision += startingPoint;
-            //delete STSA;
+            endpoint += numOfIterations;
+            startingPoint += numOfIterations;
             break;
         }
         default:;
@@ -128,7 +120,9 @@ void UiControl::on_create_clicked()
               std::cerr << "Invalid handle value" << std::endl;
            return;
         }
-        delete[] array;
+        //delete[] STSA->array;
+        //delete[] STSA->minElements;
+        //delete STSA;
         ui->availableThreads->setItem(i,0,new QTableWidgetItem(QString::number(ThreadID)));
         ui->availableThreads->setItem(i,1,new QTableWidgetItem(priority(GetThreadPriority(hThreads[i]))));
         ui->availableThreads->setItem(i,2,new QTableWidgetItem("Suspended"));
@@ -139,20 +133,26 @@ unsigned int _stdcall dThread(LPVOID arg)
 {
     SDTSA* DTSA = (SDTSA*)arg;
     std::fstream fRes;
-    std::string filePath = PATH + "studentData" + std::to_string(DTSA->fileIndex) + ".txt";
-    fRes.open(filePath, std::ios::out);
-    for(int i = 0;i < (DTSA->numberOfIterations); ++i){
-        fRes << SSTUDENTDATA << std::endl;
+    std::string filePath = PATH + "studentData.txt";
+    fRes.open(filePath, std::ios::out| std::ios::app);
+    if(fRes.is_open())
+    {
+        for(int i = 0;i < (DTSA->numberOfIterations); ++i){
+            fRes << SSTUDENTDATA << " " << GetCurrentThreadId() << std::endl;
+        }
+        fRes.close();
+    }else{
+        std::cerr << "Error: file could not be opened" << std::endl;
+        return 1;
     }
-    fRes.close();
-    delete DTSA;
+    //delete DTSA;
     return 0;
 }
 
 unsigned int _stdcall tThread(LPVOID arg){
     STTSA* TTSA = (STTSA*)arg;
     std::fstream fRes;
-    std::string filePath = PATH + "tabulation" + std::to_string(TTSA->fileIndex) + ".txt";
+    std::string filePath = PATH + "tabulation.txt";
     fRes.open(filePath, std::ios::out | std::ios::app);
     if(fRes.is_open())
     {
@@ -172,7 +172,7 @@ unsigned int _stdcall tThread(LPVOID arg){
             fRes << x << ' ' << total << ' ' << pow(1+x, -1) << std::endl;
         }
         fRes.close();
-        delete TTSA;
+        //delete TTSA;
     }else{
         std::cerr << "Error: file could not be opened" << std::endl;
         return 1;
@@ -182,21 +182,26 @@ unsigned int _stdcall tThread(LPVOID arg){
 
 unsigned int _stdcall sThread(LPVOID arg){
     SSTSA* STSA = (SSTSA*)arg;
+    std::fstream fRes;
+    std::string filePath = PATH + "array.txt";
+    fRes.open(filePath, std::ios::out | std::ios::app);
     STSA->minElements[STSA->threadIndex] = STSA->array[STSA->startingPoint];
 
-    for(int i = STSA->startingPoint; i < STSA->endPoint; i++)
-    {
-        STSA->minElements[STSA->threadIndex] =
-                STSA->minElements[STSA->threadIndex] < STSA->array[i]?
-                    STSA->minElements[STSA->threadIndex] : STSA->array[i];
+    for(int i = STSA->startingPoint + 1; i < STSA->endPoint; i++){
+        if(STSA->minElements[STSA->threadIndex] > STSA->array[i])
+            STSA->minElements[STSA->threadIndex] = STSA->array[i];
     }
-    STSA->minimalElement = STSA->minElements[0];
-    for (int k = 1; k < STSA->threadIndex+1; k++)
-    {
-        STSA->minimalElement = STSA->minimalElement < STSA->minElements[k]?
-                    STSA->minimalElement : STSA->minElements[k];
+    for(int i = STSA->startingPoint; i < STSA->endPoint; i++){
+        fRes << STSA->array[i] << std::endl;
     }
-    qDebug() << STSA->minimalElement;
+    STSA->minimalElement = &STSA->minElements[STSA->threadIndex];
+
+    for (int k = STSA->threadIndex - 1; k >= 0; k--){
+        if(*STSA->minimalElement > STSA->minElements[k])
+            STSA->minimalElement = &STSA->minElements[k];
+    }
+    qDebug() << *STSA->minimalElement << " in threads 0-" << STSA->threadIndex;
+    fRes.close();
     return 0;
 }
 
@@ -220,8 +225,6 @@ void UiControl::on_runall_clicked()
     for(int i = 0; i < numOfThreads; ++i){
         ui->availableThreads->item(i, 2)->setText("Running");
         ResumeThread(hThreads[i]);
-    }
-    for(int i = 0; i < numOfThreads; ++i){
         WaitForSingleObject(hThreads[i], INFINITE);
     }
     timer.nsecsElapsed();
@@ -231,11 +234,18 @@ void UiControl::on_runall_clicked()
          ui->availableThreads->item(i, 2)->setText("Finished");
     }
 }
+void UiControl::on_runwithouttime_clicked()
+{
+    for(int i = 0; i < numOfThreads; ++i){
+        ui->availableThreads->item(i, 2)->setText("Running");
+        ResumeThread(hThreads[i]);
+    }
+}
 
 void UiControl::on_run_clicked()
 {
     ui->availableThreads->item(ui->availableThreads->currentIndex().row(), 2)->setText("Running");
-    //qApp->processEvents();
+    qApp->processEvents();
     ResumeThread(hThreads[ui->availableThreads->currentIndex().row()]);
     WaitForSingleObject(hThreads[ui->availableThreads->currentIndex().row()], INFINITE);
     ui->availableThreads->item(ui->availableThreads->currentIndex().row(), 2)->setText("Finnished");

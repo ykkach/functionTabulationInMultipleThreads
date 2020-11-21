@@ -39,6 +39,8 @@ private slots:
 
     void on_priority_currentIndexChanged(int index);
 
+    void on_runwithouttime_clicked();
+
 private:
     QString priority(int);
 
